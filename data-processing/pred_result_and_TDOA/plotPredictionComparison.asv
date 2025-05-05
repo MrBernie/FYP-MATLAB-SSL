@@ -1,0 +1,98 @@
+
+
+
+
+
+function plotPredictionComparison(time_axis, angles, pred_matrix, tdoa_angles, DOA_gt, dl_angles, ...
+    total_time, audio_file, output_dir, file_prefix, plotOptions)
+% plotPredictionComparison - 绘制预测结果对比图
+%
+% 输入参数：
+%   time_axis      - 时间轴（秒）
+%   angles      - 角度轴（0~180度）
+%   pred_matrix    - 深度学习预测概率矩阵（num_frames x num_angles）
+%   tdoa_angles    - TDOA预测角度（num_frames x 1）
+%   DOA_gt         - 真实值（num_frames x 1）
+%   dl_angles      - 深度学习预测最大角度索引（num_frames x 1）
+%   total_time     - 音频总时长（秒）
+%   audio_file     - 音频文件名（字符串）
+%   output_dir     - 输出文件夹路径
+%   file_prefix    - 文件名前缀
+%   plotOptions    - 结构体，包含三个字段：
+%                    plotOptions.showPredMatrix (bool)
+%                    plotOptions.showTDOA (bool)
+%                    plotOptions.showDLMax (bool)
+%                    plotOptions.showGT (bool)
+%
+% 功能：
+%   根据plotOptions绘制对应图形，保存png文件。
+
+    fig = figure('Visible', 'off', 'Position', [100 100 1280 720]);
+    hold on;
+
+    % 画深度学习预测概率热图
+    if plotOptions.showPredMatrix
+        pcolor(time_axis, angles, pred_matrix');
+        % shading interp;
+        shading flat;
+        colormap(jet);
+        colorbar;
+    end
+
+    % 画TDOA预测点
+    if plotOptions.showTDOA
+        scatter(time_axis + mean(diff(time_axis))/2, tdoa_angles, ...
+            15, 'w', 'filled', 'MarkerEdgeColor', 'k', 'MarkerFaceAlpha', 0.9);
+    end
+
+    % 画深度学习预测最大值点
+    if plotOptions.showDLMax
+        scatter(time_axis + mean(diff(time_axis))/2, dl_angles, ...
+            15, 'r', 'filled', 'MarkerEdgeColor', 'k', 'MarkerFaceAlpha', 0.9);
+    end
+
+    if plotOptions.showGT && ~isempty(DOA_gt)
+        % DOA_gt是num_frames x 1，time_axis是num_frames x 1或长度相同
+        % 画绿色虚线，线宽2
+        plot(time_axis + mean(diff(time_axis))/2, DOA_gt, 'g--', 'LineWidth', 2);
+    end
+
+    xlim([0 total_time]);
+    ylim([0 180]);
+    title([strrep(audio_file, '_', '\_') ' - Prediction Comparison']);
+    xlabel('Time (seconds)');
+    ylabel('Angle (°)');
+
+    legendEntries = {};
+    if plotOptions.showPredMatrix
+        legendEntries{end+1} = 'Deep Learning Prediction Result';
+    end
+    if plotOptions.showTDOA
+        legendEntries{end+1} = 'TDOA Prediction';
+    end
+    if plotOptions.showDLMax
+        legendEntries{end+1} = 'Deep Learning Prediction Max';
+    end
+    if ~isempty(legendEntries)
+        legend(legendEntries, 'Location', 'best');
+    end
+
+    grid off;
+    set(gca, 'GridLineStyle', ':', 'GridColor', 'k', 'GridLineWidth', 0.05);
+    set(gca, 'Layer', 'top');
+
+    % 保存图片
+    output_name = [file_prefix '-bandpass-filtered-pred-matrix-TDOA.png'];
+    exportgraphics(fig, fullfile(output_dir, output_name), 'Resolution', 300);
+    close(fig);
+
+    fprintf('成功保存图像: %s\n', output_name);
+end
+
+
+
+
+
+
+
+

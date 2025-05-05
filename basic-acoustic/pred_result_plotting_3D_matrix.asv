@@ -1,0 +1,272 @@
+%% Plot 3D diagram for a single audio prediction result
+
+% close all;
+clear all;
+
+% 读取txt文件
+[fileName, filePath] = uigetfile('*.txt', '选择预测结果文件');
+
+% 检查用户是否选择了文件
+if isequal(fileName, 0)
+    disp('取消了文件选择');
+    return; % 退出程序
+else
+    disp(['选择了文件: ', fullfile(filePath, fileName)]);
+end
+
+try
+    % 尝试读取文件
+    data = readmatrix(fullfile(filePath, fileName));
+
+    % 获取数据维度
+    [num_frames, num_angles] = size(data);
+
+    % 创建坐标网格
+    time_frames = 1:num_frames;
+    angles = 1:num_angles;
+    [X, Y] = meshgrid(time_frames * 0.2, angles);
+
+    % 绘制3D表面图
+    figure;
+    surf(X', Y', data);
+
+    % 添加坐标轴标签
+    xlabel('Time Sections');
+    ylabel('Angle (degree)');
+    zlabel('Prediction Result');
+
+    % 添加标题
+    title_string = strjoin({fileName, 'Time-Angle-Prediction 3D'}, ' - ');
+    title(title_string);
+
+    % 可以根据需要调整视角
+    % view(3); % 默认3D视角
+    view([0 90]); % 自定义视角（方位角，仰角）
+
+    % 可以添加颜色条
+    colorbar;
+    
+    % % 绘制2D图像
+    % figure;
+    % imagesc(data'); % 使用imagesc函数绘制2D图像
+    % 
+    % % 添加坐标轴标签
+    % xlabel('时间帧');
+    % ylabel('角度');
+    % 
+    % % 添加标题
+    % title_string = strjoin({fileName, '时间帧-角度 2D 图'}, ' - ');
+    % title(title_string);
+    % 
+    % % 设置 y 轴的刻度，显示角度值
+    % % yticks(1:num_angles); % 确保有足够的刻度
+    % % yticklabels(string(angles)); % 假设你的角度是 1 到 180
+    % 
+    % % 添加颜色条
+    % colorbar;
+    % 
+    % % 调整布局以防止重叠
+    % sgtitle(['文件: ', fileName]); % 总标题，显示文件名
+    drawnow; % 确保图形更新
+    
+catch ME
+    % 捕获错误
+    disp(['读取文件时发生错误: ', ME.message]);
+end
+
+%% Plot 3D Diagram for entire folder and saved as files
+
+% 清除工作区
+clear all;
+close all;
+
+% 可视化路径选择界面
+try
+    input_folder = uigetdir('', '请选择输入文件夹');
+    if input_folder == 0
+        error('用户取消输入文件夹选择');
+    end
+    
+    output_folder = uigetdir('', '请选择输出文件夹');
+    if output_folder == 0
+        error('用户取消输出文件夹选择');
+    end
+catch ME
+    errordlg(['路径选择错误: ' ME.message], '系统错误');
+    return;
+end
+
+% 自动创建输出目录
+if ~exist(output_folder, 'dir')
+    mkdir(output_folder);
+end
+
+% 每个音频时间长度（手动修改）(秒)
+total_time_length = 15;
+
+%input_folder底下子文件夹
+pred_matrix_dir = fullfile(input_folder, 'pred_matrix');
+
+% 获取所有txt文件列表
+file_list = dir(fullfile(pred_matrix_dir, '*.txt'));
+
+% 遍历处理每个文件
+for n = 1:length(file_list)
+    current_file = fullfile(pred_matrix_dir, file_list(n).name);
+    
+    try
+        % 读取数据矩阵
+        data = readmatrix(current_file);
+        [num_frames, num_angles] = size(data);
+        seconds_per_frames = total_time_length/num_frames;
+        
+        % 创建新图形窗口
+        fig = figure('Visible', 'off'); % 不显示图形窗口
+        set(fig, 'Position', [0 0 1280 720]); % 设置分辨率画布
+        
+        % 绘制3D表面图
+        X = linspace(0,total_time_length,num_frames);
+        Y = 1:num_angles;
+        surf(X, Y, data');
+        
+        % 图形标注设置
+        xlabel('Time Frames');
+        ylabel('Angle (degree)');
+        zlabel('Prediction Value');
+        title_str = strrep(file_list(n).name, '_', '\_'); % 转义下划线
+        title([title_str ' - 3D Plot']);
+        % view(3); % 标准3D视角
+        view([0 90]);
+        colorbar;
+        grid on;
+        
+        % 设置保存路径
+        [~, name] = fileparts(file_list(n).name);
+        output_path = fullfile(output_folder, [name '_3Dplot.png']);
+        
+        % 保存为高清图片（可修改为.fig保存原始图形）
+        exportgraphics(fig, output_path, 'Resolution', 300);
+        close(fig); % 关闭图形释放内存
+        
+        fprintf('成功处理: %s\n', file_list(n).name);
+        
+    catch ME
+        fprintf('文件 %s 处理失败: %s\n', file_list(n).name, ME.message);
+        if exist('fig', 'var') && ishandle(fig)
+            close(fig); % 确保异常时关闭图形
+        end
+    end
+end
+
+disp('批量处理完成！');
+
+%% Include VAD to the final result diagram
+
+clear all;
+close all;
+
+try
+    input_folder = uigetdir('', '请选择输入文件夹');
+    if input_folder == 0
+        error('用户取消输入文件夹选择');
+    end
+    
+    output_folder = uigetdir('', '请选择输出文件夹');
+    if output_folder == 0
+        error('用户取消输出文件夹选择');
+    end
+catch ME
+    errordlg(['路径选择错误: ' ME.message], '系统错误');
+    return;
+end
+
+if ~exist(output_folder, 'dir')
+    mkdir(output_folder);
+end
+
+% 采样率和单个音频总时长
+fs = 16000;
+total_time_length = 15;
+
+pred_matrix_dir = fullfile(input_folder, 'pred_matrix');
+vad_out_dir = fullfile(input_folder, 'vad_out');
+
+file_list = dir(fullfile(pred_matrix_dir, '*.txt'));
+
+for n = 1:length(file_list)
+    current_file = fullfile(pred_matrix_dir, file_list(n).name);
+    
+    try
+        data = readmatrix(current_file);
+        [num_frames, num_angles] = size(data);
+        
+        % 获取对应的VAD文件路径
+        [~, pred_name] = fileparts(file_list(n).name);
+        vad_name = strrep(pred_name, '-pred-matrix', '-vad-out');
+        vad_file = fullfile(vad_out_dir, [vad_name '.txt']);
+        
+        if ~exist(vad_file, 'file')
+            error('VAD文件不存在: %s', vad_file);
+        end
+        
+        vad_data = readmatrix(vad_file);
+        
+        time_frames = linspace(0,total_time_length,num_frames);
+        samples_per_time_frame = fs
+        % 计算每个时间窗的VAD平均值
+        avg_values = zeros(1, num_frames);
+        for i = 1:num_frames
+            start_idx = (i-1)*3200 + 1;
+            end_idx = i*3200;
+            window_vad = vad_data(start_idx:end_idx, :);
+            avg_values(i) = mean(window_vad(:), 'double');
+        end
+        
+        % 调整颜色亮度
+        alpha_matrix = repmat(avg_values, num_angles, 1);
+        cdata = data';
+        cmin = min(cdata(:));
+        cmax = max(cdata(:));
+        cdata_normalized = (cdata - cmin) / (cmax - cmin);
+        
+        cmap = colormap;
+        num_colors = size(cmap, 1);
+        color_indices = round(cdata_normalized * (num_colors - 1)) + 1;
+        color_indices = max(min(color_indices, num_colors), 1);
+        
+        rgb_colors = ind2rgb(color_indices, cmap);
+        hsv_colors = rgb2hsv(rgb_colors);
+        hsv_colors(:,:,3) = hsv_colors(:,:,3) .* alpha_matrix;
+        adjusted_rgb = hsv2rgb(hsv_colors);
+        
+        fig = figure('Visible', 'off');
+        set(fig, 'Position', [0 0 1280 720]);
+        
+        surf(1:num_frames, 1:num_angles, data', 'FaceColor', 'texturemap', 'CData', adjusted_rgb);
+        xlabel('Time Sections (0.2s/unit)');
+        ylabel('Angle (degree)');
+        zlabel('Prediction Value');
+        title_str = strrep(file_list(n).name, '_', '\_');
+        title([title_str ' - 3D Plot']);
+        view([0 90]);
+        colorbar;
+        caxis([cmin cmax]);
+        grid on;
+        
+        output_path = fullfile(output_folder, [pred_name '_3Dplot.png']);
+        exportgraphics(fig, output_path, 'Resolution', 300);
+        close(fig);
+        
+        fprintf('成功处理: %s\n', file_list(n).name);
+        
+    catch ME
+        fprintf('文件 %s 处理失败: %s\n', file_list(n).name, ME.message);
+        if exist('fig', 'var') && ishandle(fig)
+            close(fig);
+        end
+    end
+end
+
+disp('批量处理完成！');
+
+

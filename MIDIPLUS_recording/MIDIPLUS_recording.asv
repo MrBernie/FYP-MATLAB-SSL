@@ -1,0 +1,80 @@
+%% 音频采集参数设置
+Fs = 51200;                 % 采样率
+duration = 5;             % 录制时长(秒)
+samplesPerFrame = 2048;     % 每帧采样数
+numChannels = 2;            % 双通道录音
+totalSamples = Fs * duration; % 总采样点数
+
+%% 创建音频采集对象
+deviceReader = audioDeviceReader(...
+    'Device', '麦克风 (USB Audio CODEC )', ... % 修改为实际设备名称
+    'SampleRate', Fs,...
+    'NumChannels', numChannels,...
+    'SamplesPerFrame', samplesPerFrame);
+
+%% 初始化数据存储矩阵
+audioData = zeros(totalSamples, numChannels);
+currentIndex = 1;
+
+%% 显示录制进度
+h = waitbar(0, '开始录音...', 'Name','录音进度');
+
+%% 执行采集循环
+try
+    while currentIndex <= totalSamples
+        % 读取当前帧数据
+        frameData = deviceReader();
+        
+        % 计算本帧有效采样数
+        validSamples = size(frameData, 1);
+        remainingSamples = totalSamples - currentIndex + 1;
+        
+        % 处理最后一帧数据
+        if validSamples > remainingSamples
+            validSamples = remainingSamples;
+            frameData = frameData(1:validSamples, :);
+        end
+        
+        % 存储音频数据
+        audioData(currentIndex:currentIndex+validSamples-1, :) = frameData;
+        
+        % 更新索引
+        currentIndex = currentIndex + validSamples;
+        
+        % 更新进度条
+        progress = currentIndex / totalSamples;
+        waitbar(progress, h, sprintf('录制进度: %.1f%%', progress*100));
+    end
+catch ME
+    % 异常处理
+    release(deviceReader);
+    delete(h);
+    rethrow(ME);
+end
+
+%% 释放硬件资源
+release(deviceReader);
+delete(h);
+
+%% 数据后处理与保存
+% 归一化处理
+audioData = audioData / max(abs(audioData(:)));
+
+% 保存为WAV文件
+filename = 'microphone_recording.wav';
+audiowrite(filename, audioData, Fs);
+fprintf('录音已保存为: %s\n', filename);
+
+%% 绘制时域波形验证（可选）
+figure;
+subplot(2,1,1);
+plot((0:totalSamples-1)/Fs, audioData(:,1));
+title('通道1 - 时域波形');
+xlabel('时间 (s)');
+ylabel('幅值');
+
+subplot(2,1,2);
+plot((0:totalSamples-1)/Fs, audioData(:,2));
+title('通道2 - 时域波形');
+xlabel('时间 (s)');
+ylabel('幅值');
